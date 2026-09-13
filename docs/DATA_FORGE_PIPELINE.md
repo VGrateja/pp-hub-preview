@@ -78,6 +78,7 @@ All write **`rdp_raw_series`** (long format, upsert `onConflict: source,region_s
 | 17 | ingest-rba-commercial | RBA F3 corporate + F2 govt (2013+) + F4 term deposit | `corporate_bond_yield`,`govt_bond_yield`,`term_deposit_1y` | M & A | rdp_raw_series (pre-2013 stays on forge_commercial seed) |
 | 18 | ingest-national-only | ABS CWD + IMF DataMapper + RBA + cash_rate read-back + seeds | — | — | **forge_national_only** |
 | 19 | ingest-abs-act-industry | ABS 5220.0 Table 9 (ACT GVA by industry) | — | — | **forge_industry** (Canberra only; keeps REMPLAN regions) |
+| 19b | ingest-remplan-industry | REMPLAN economy profiles — the public profile API behind each council's Value Added page (`matrix_valueadded`, 19-sector view, dollars; no login) | — | — | **forge_industry** (35 regions; records each region's REMPLAN release + lastUpdated; Canberra stays ABS) — **added 2026-09-13, replaces the spreadsheet drops** |
 | 20 | ingest-sqm-rents | SQM Research (HTML scrape) | house/unit rents | — | **forge_demand_inputs** (keeps manual REA listings) |
 | 21 | ingest-sqm-vacancy | SQM Research (HTML scrape) | `vr` | — | **forge_demand_inputs** |
 | 22 | ingest-westpac-hpei | Westpac–Melbourne Institute Consumer Sentiment bulletin — the PUBLIC monthly PDF on Westpac's library, parsed | `house_price_expectations` (national) | M | rdp_raw_series (source `wmi`, same lineage as the CSV) + forge_data_status `hpei_national` |
@@ -102,7 +103,7 @@ one launcher, `scripts/run-jsa-jobcreation.cmd`.
 ### 3c. Upsert / history rules
 
 - Every `rdp_raw_series` write is upsert-only on the 5-column key — never deletes rows the API dropped.
-- JSONB stores read-then-merge: pop-pyramid keeps manual regionals; act-industry only touches `canberra`; demand_inputs keeps manual REA listings; national_only / commercial pin/merge against seeds.
+- JSONB stores read-then-merge: pop-pyramid keeps manual regionals; act-industry only touches `canberra`; remplan-industry only touches its 35 regions; demand_inputs keeps manual REA listings; national_only / commercial pin/merge against seeds.
 - SQM ingests refuse to write when nothing parsed ("Nothing parsed — refusing to write") to avoid wiping good data with an empty scrape.
 
 ### 3d. Explicitly out of GATHER scope (manual)

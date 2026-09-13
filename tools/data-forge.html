@@ -561,7 +561,7 @@
   <section id="dfIndustry" hidden>
     <button class="df-back" data-home>← All data points</button>
     <div id="indOut"></div>
-    <div class="df-card" style="margin-top:14px"><h2>Update <span class="count">drop one consolidated sheet, or batch-drop REMPLAN per-region exports</span></h2>
+    <div class="df-card" style="margin-top:14px"><h2>Manual fallback <span class="count">normally not needed — the 35 REMPLAN regions refresh from the profile API on the 10th; drop a sheet only to override</span></h2>
       <div class="df-drop" id="indDrop">
         <input type="file" id="indFile" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden/>
         <svg class="emg" viewBox="0 0 24 24"><path d="M3.5 20V9.5l5 3v-3l5 3v-3l7 4V20z"/><path d="M3.5 20h17"/></svg> <strong>Drop your Industry .xlsx file(s) here</strong> (or click — you can select many)<br/>
@@ -856,7 +856,7 @@ const CLUSTERS = [
   { key:'consumer_confidence', icon:'🙂', ingest:'local', label:'Consumer Confidence', desc:'OECD <b>Consumer Confidence Index (CCI)</b> for Australia — monthly, amplitude adjusted, <b>100 = the long-run average</b> (the series only moves in a ~96–102 band, so never chart it from zero). National only, history from 1974. Pulled from the OECD Data Explorer SDMX API. Feeds B/S Slides page 32.', view:'cci' },
   { key:'business_finance', icon:'💼', ingest:'api', label:'Business Finance', desc:'ABS Lending Indicators (5601.0) — <b>new loan commitments</b> on fixed term loans, four series: <b>small</b> and <b>medium</b> businesses × <b>Construction</b> and <b>Purchase of property</b>. National + 8 states, quarterly ($m) from 2019-Q3. All four are plotted on B/S Slides page 28.', view:'bizfin' },
   { key:'dwellings', icon:'🏗️', ingest:'file', label:'Total Dwellings (Oxford)', desc:'Oxford Economics dwelling pipeline — <b>approvals, commencements &amp; completions</b> (total dwellings incl. conversion), annual 2002–2029 with 2026+ Oxford’s forecast. Seeded from the licensed Oxford export (<code>ingest-oxford-dwellings.mjs</code>, ALL DATA sheet). 27 of the 36 markets have an Oxford location; the other 9 fall back to the Building Approvals point. Feeds B/S Slides page 13.', view:'dwellings' },
-  { key:'industry', icon:'🏭', ingest:'hybrid', label:'Industry Value Added', desc:'Industry composition (% by ANZSIC division) per region. No API — gathered from REMPLAN economy profiles; uploaded as a spreadsheet.', view:'industry' },
+  { key:'industry', icon:'🏭', ingest:'api', label:'Industry Value Added', desc:'Industry composition (% by ANZSIC division) per region. <b>Read automatically from the REMPLAN economy profiles</b> — the public profile API behind each council&rsquo;s &ldquo;Value Added&rdquo; page, 19 divisions in dollars, 35 regions (<code>ingest-remplan-industry.mjs</code>, found 2026-09-13); Canberra from ABS 5220.0. Each region records its REMPLAN release (e.g. 2025 Release 2). The spreadsheet drop below stays as a fallback.', view:'industry' },
   { key:'population_pyramid', icon:'🔺', ingest:'api', label:'Population Pyramid', desc:'Population by 5-year age group per region. National, 8 states & 8 capital cities (GCCSA) auto-pulled from the ABS API (ERP_ASGS2021, age×sex); the 28 regional cities uploaded from the Data Dump PopPyramid sheet.', view:'popPyramid' },
   { key:'arrears', icon:'🏚️', ingest:'manual', label:'Mortgage Arrears', desc:'S&P Global Ratings RMBS SPIN arrears index — national + 8 states, monthly %. No API (S&P subscription PDF/spreadsheet); upload the Data Dump Arrears sheet.', view:'arrears' },
   { key:'civ', icon:'💰', ingest:'derived', label:'Current Investment Value', desc:'Gross rental yield (house & unit) for the 5 major capitals — derived live from the Cotality data point: yield = weekly rent × 52 ÷ median price. Updates automatically when Cotality is re-imported.', view:'civ' },
@@ -1106,7 +1106,7 @@ async function loadStatus(){
   const agingPts = [], stalePts = [];   // card LABELS, so the banner can say WHICH data
   const cardHtml = (c) => {
     const st = statusMap[c.key] || {};
-    const status = (c.key === 'civ' || c.key === 'monthly_price' || c.key === 'sensitivity' || c.key === 'pop_forecast') ? 'derived' : (c.key === 'cotality' || c.key === 'industry' || c.key === 'arrears' || c.key === 'demand_inputs' || c.key === 'replacement_cost' || c.key === 'sentiment_manual') ? (st.status === 'error' ? 'error' : 'manual') : (st.status || 'ok');
+    const status = (c.key === 'civ' || c.key === 'monthly_price' || c.key === 'sensitivity' || c.key === 'pop_forecast') ? 'derived' : (c.key === 'cotality' || c.key === 'arrears' || c.key === 'demand_inputs' || c.key === 'replacement_cost' || c.key === 'sentiment_manual') ? (st.status === 'error' ? 'error' : 'manual') : (st.status || 'ok');
     const isErr = status === 'error';
     /* "Last activity" = the NEWEST of the status row and the store's own
        updated_at (manualDates). Manual drops (Cotality etc.) write their STORE
@@ -2079,7 +2079,7 @@ async function saveIndustry(data){
     await window.sb.from('forge_industry').upsert({ id: 'latest', data, uploaded_at: new Date().toISOString(), updated_at: new Date().toISOString(), uploaded_by: email }, { onConflict: 'id' }); } catch (_) {}
 }
 async function loadIndustry(){
-  const out = document.getElementById('indOut'); out.innerHTML = '<div class="df-hero"><div class="df-eyebrow">REMPLAN · Industry value added</div><div class="df-title">Industry Value Added</div><div class="df-sub">Loading…</div></div>';
+  const out = document.getElementById('indOut'); out.innerHTML = '<div class="df-hero"><div class="df-eyebrow">REMPLAN profile API + ABS (Canberra) · Industry value added · automatic</div><div class="df-title">Industry Value Added</div><div class="df-sub">Loading…</div></div>';
   let row = null; try { const { data } = await window.sb.from('forge_industry').select('*').eq('id', 'latest').maybeSingle(); row = data; } catch {}
   renderIndustry(row && row.data, row);
 }
@@ -2125,7 +2125,7 @@ const IND_REMPLAN_LINKS = {
 function indLinkBar(slug){
   if (slug === 'canberra') return '<div class="ind-linkbar auto">⚡ Canberra updates automatically from ABS State Accounts — no download needed.</div>';
   const u = IND_REMPLAN_LINKS[slug];
-  if (u) return '<div class="ind-linkbar"><a href="' + esc(u) + '" target="_blank" rel="noopener">📥 Open ' + esc(labelOf(slug)) + ' on REMPLAN ↗</a><span class="hint">grab the “Value added by industry” table, then drop it in Update below</span></div>';
+  if (u) return '<div class="ind-linkbar"><a href="' + esc(u) + '" target="_blank" rel="noopener">📥 Open ' + esc(labelOf(slug)) + ' on REMPLAN ↗</a><span class="hint">the page these figures are read from each gather — the drop zone below is only a manual fallback</span></div>';
   return '<div class="ind-linkbar none">No saved REMPLAN link for ' + esc(labelOf(slug)) + ' yet — add it to <code>IND_REMPLAN_LINKS</code> in data-forge.html.</div>';
 }
 // self-update guide for Industry (manual REMPLAN; Canberra is auto via ABS)
@@ -2141,7 +2141,7 @@ function indUpdateGuide(){
 }
 function renderIndustry(data, meta){
   const out = document.getElementById('indOut');
-  const eyebrow = 'REMPLAN · Industry value added';
+  const eyebrow = 'REMPLAN profile API + ABS (Canberra) · Industry value added · automatic';
   if (!data || !data.regions || !Object.keys(data.regions).length){
     IND_DATA = null;
     out.innerHTML = '<div class="df-hero"><div class="df-eyebrow">' + eyebrow + '</div><div class="df-title">Industry Value Added</div><div class="df-sub"><span class="df-statuspill">Manual</span> <span>No data yet — upload your Industry Value Added sheet below.</span></div></div>'; return;
@@ -2154,12 +2154,12 @@ function renderIndustry(data, meta){
   const updated = meta ? fmtDate(meta.uploaded_at || meta.updated_at) : '—';
   const hero = '<div class="df-hero"><div class="df-hero-top"><div>'
     + '<div class="df-eyebrow">' + eyebrow + '</div><div class="df-title">Industry Value Added</div>'
-    + '<div class="df-sub"><span class="df-statuspill">Manual</span> <span>Share of each economy by ANZSIC industry — gathered by hand from REMPLAN (no API).</span></div></div></div>'
+    + '<div class="df-sub"><span class="df-statuspill ok">Automatic</span> <span>Share of each economy by ANZSIC industry — read from the REMPLAN profile API each gather (35 regions, each tagged with its REMPLAN release); Canberra from ABS 5220.0.</span></div></div></div>'
     + '<div class="df-stats">'
     + dfStat('Regions', String(regions.length), true)
     + dfStat('Industries', String(inds.length))
     + dfStat('Updated', '<span class="sm">' + esc(updated) + '</span>')
-    + dfStat('Source', '<span class="sm">REMPLAN + ABS (Canberra)</span><div class="df-stat-foot">' + ingestChip('hybrid') + '</div>')
+    + dfStat('Source', '<span class="sm">REMPLAN profile API + ABS (Canberra)</span><div class="df-stat-foot">' + ingestChip('api') + '</div>')
     + '</div></div>';
   const indOpt = s => '<option value="' + esc(s) + '"' + (s === IND_SEL ? ' selected' : '') + '>' + esc(labelOf(s)) + '</option>';
   const manualRegions = regions.filter(s => s !== 'canberra'), autoRegions = regions.filter(s => s === 'canberra');

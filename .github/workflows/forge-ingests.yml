@@ -104,6 +104,7 @@ jobs:
             ingest-rba-commercial.mjs \
             ingest-national-only.mjs \
             ingest-abs-act-industry.mjs \
+            ingest-remplan-industry.mjs \
             ingest-sqm-rents.mjs \
             ingest-sqm-vacancy.mjs \
             ingest-westpac-hpei.mjs \
