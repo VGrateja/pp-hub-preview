@@ -19,6 +19,9 @@
                     have grown fastest, year by year: rolling 7.5, 9 or 10 years, a
                     custom period, or since each capital's first record; as a
                     yearly rate or the total
+     ?view=regions  "Regional growth": the same race over up to 100 regions (urban areas and
+                    councils), with filters for the list, the price measure, smooth v workforce,
+                    capital v regional, population and how many bars show (2026-11-27)
      &skip=2022     leaves out the fall that peaked in that year (comma list allowed);
                     the rest keep their places and the words count what is left.
                     Without the parameter 2022 is left out (owner, 2026-11-25);
@@ -33,6 +36,9 @@
                        January 1980 to June 2018 (scripts/build-cl-capital-history.mjs)
      forge_cl_suburbs  level `capital` — the same figures from July 2018, so a
                        new Cotality month shows here with no further step
+     forge_cotality    row cl_region_history — the regions, their population, type and
+                       price series (scripts/build-cl-region-history.mjs; read only when
+                       the Regional growth view opens)
    Everything drawn is worked out in the page from those two.
    ═══════════════════════════════════════════════════════════════════════════ */
 *,*::before,*::after{box-sizing:border-box}
@@ -144,6 +150,15 @@ body.cy-presenting.cy-idle .cy-presbar{opacity:0;pointer-events:none}
 .cy-strip div.now{outline:2px solid var(--ink);outline-offset:1px}
 .cy-stripyears{display:grid;gap:2px;margin-top:4px;font-size:9.5px;color:var(--mut);font-variant-numeric:tabular-nums}
 .cy-stripyears span{text-align:center}
+
+/* regions (2026-11-27): the growth race over up to 100 regions; the filters are native selects, opaque on both grounds */
+.cy-titlerow .cy-rkey{font-size:11px;line-height:1.35;font-weight:600;color:var(--mut);text-align:right;padding-bottom:4px}
+.cy-pick{display:inline-flex;align-items:center;gap:6px;flex:none;font-size:12px;font-weight:600;color:var(--mut)}
+.cy-pick select{height:30px;border:1px solid var(--tileline);border-radius:999px;background-color:var(--bg);color:var(--ink);font:inherit;font-size:12px;font-weight:600;padding:0 10px;cursor:pointer}
+.cy-pick select option{background-color:var(--bg);color:var(--ink)}
+.cy-pick select:focus-visible{outline:2px solid var(--teal);outline-offset:1px}
+.cy-rcount{position:absolute;right:8px;top:-2px;font-size:11px;font-weight:600;color:var(--mut);pointer-events:none}
+.cy-rempty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--ink2);text-align:center;padding:40px}
 </style>
 </head>
 <body>
@@ -151,6 +166,7 @@ body.cy-presenting.cy-idle .cy-presbar{opacity:0;pointer-events:none}
   <div class="cy-tabs" role="tablist">
     <button class="cy-tab" data-view="falls" role="tab">The biggest falls</button>
     <button class="cy-tab" data-view="growth" role="tab">Rolling capital growth</button>
+    <button class="cy-tab" data-view="regions" role="tab">Regional growth</button>
     <button class="cy-tab cy-present" id="cyPresent" type="button" title="Show the chart full screen. ← → switch charts, Esc leaves.">▶ Present</button>
   </div>
   <div class="cy-presbar" id="cyPresBar" role="toolbar" aria-label="Present">
@@ -203,6 +219,39 @@ body.cy-presenting.cy-idle .cy-presbar{opacity:0;pointer-events:none}
         <div class="cy-stripyears" id="gStripYears"></div>
         <div class="cy-foot"><div id="gFoot"></div><img alt="Performance Property" id="gLogo"></div>
       </div>
+
+      <!-- ── view: regions ── -->
+      <div id="vRegions" hidden style="display:contents">
+        <div class="cy-eyebrow" id="rEyebrow">House prices · regions</div>
+        <div class="cy-titlerow"><h1>Rolling regional growth</h1><div class="cy-rkey">Solid bar: a capital city · lighter bar: a region,<br>in its state capital's colour</div></div>
+        <div class="cy-ctl">
+          <div class="cy-seg" id="rType" role="group" aria-label="Property type"><button type="button" data-type="H" class="on">House</button><button type="button" data-type="U">Unit</button></div>
+          <div class="cy-seg" id="rSeg" role="group" aria-label="Period"><button type="button" data-mode="roll75">7.5 years</button><button type="button" data-mode="roll9" class="on">9 years</button><button type="button" data-mode="roll">10 years</button><button type="button" data-mode="long">Long term</button><button type="button" data-mode="custom">Custom</button></div>
+          <span class="cy-custom" id="rCustom" hidden><input id="rYears" type="text" inputmode="decimal" autocomplete="off" value="10" aria-label="Custom period in years, 1 to 30, to the half year" title="Any period from 1 to 30 years, to the half year. Press Enter to apply">years</span>
+          <div class="cy-seg" id="rMeasure" role="group" aria-label="Growth shown"><button type="button" data-total="0">Yearly</button><button type="button" data-total="1" class="on">Total capital growth</button></div>
+        </div>
+        <div class="cy-ctl">
+          <label class="cy-pick">Regions<select id="rList" aria-label="Regions"><option value="top">Top 100 urban areas</option><option value="mixed">Urban areas 50k+, then councils</option></select></label>
+          <label class="cy-pick">Price<select id="rPrice" aria-label="Price measure"><option value="lga">Councils it covers</option><option value="sub">Suburbs inside it</option></select></label>
+          <label class="cy-pick">Market<select id="rMarket" aria-label="Market type"><option value="all">All</option><option value="smooth">Smooth</option><option value="workforce">Workforce</option><option value="none">Not typed</option></select></label>
+          <label class="cy-pick">Area<select id="rArea" aria-label="Capital or regional"><option value="all">All</option><option value="capitals">Capitals</option><option value="regional">Regional</option></select></label>
+          <label class="cy-pick">People<select id="rPop" aria-label="Population"></select></label>
+          <label class="cy-pick">Show<select id="rShow" aria-label="Bars shown"><option value="10">Top 10</option><option value="20">Top 20</option><option value="all">All</option></select></label>
+        </div>
+        <div class="cy-ctl">
+          <button class="cy-play" id="rPlay" type="button" aria-label="Play"><svg viewBox="0 0 16 16" aria-hidden="true"><path id="rPlayIcon" d="M4.5 3 13 8l-8.5 5Z" fill="currentColor"/></svg></button>
+          <div class="cy-track"><input class="cy-range" id="rRange" type="range" min="0" max="0" step="1" value="0" aria-label="Year"><div class="cy-ticks" id="rTicks" role="group" aria-label="Jump to a year"></div></div>
+          <label id="rSpeedLabel">Speed</label>
+          <div class="cy-seg" id="rSpeed" role="group" aria-labelledby="rSpeedLabel"><button type="button" data-speed="slow">Slow</button><button type="button" data-speed="normal">Normal</button><button type="button" data-speed="fast">Fast</button></div>
+        </div>
+        <div class="cy-body">
+          <div class="cy-chart"><div id="rChart"></div><div class="cy-year" id="rYear"></div><div class="cy-rcount" id="rCount"></div><div class="cy-rempty" id="rEmpty" hidden></div></div>
+        </div>
+        <div class="cy-striphead">Who led each year</div>
+        <div class="cy-strip" id="rStrip"></div>
+        <div class="cy-stripyears" id="rStripYears"></div>
+        <div class="cy-foot"><div id="rFoot"></div><img alt="Performance Property" id="rLogo"></div>
+      </div>
     </section>
   </div>
 </div>
@@ -218,7 +267,7 @@ body.cy-presenting.cy-idle .cy-presbar{opacity:0;pointer-events:none}
 <script>
 const QS = new URLSearchParams(location.search), EMBED = QS.get('embed') === '1';
 if (EMBED) document.body.classList.add('embed-mode'); else PP_OS.initChrome({ name: 'Market Cycles', section: 'vault', backHref: '../' });
-let VIEW = QS.get('view') === 'growth' ? 'growth' : 'falls';
+let VIEW = ['growth', 'regions'].includes(QS.get('view')) ? QS.get('view') : 'falls';
 const $ = s => document.querySelector(s);
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -501,6 +550,154 @@ function setSpeed(s){
   if (gTimer) play(true);
 }
 
+/* ═════════════════════════════ view: regions ═════════════════════════════
+   Regional growth (Saskia via Van, 2026-11-27, for Davie): the growth race over up to 100 regions, from forge_cotality row
+   cl_region_history (scripts/build-cl-region-history.mjs). Two lists: the 100 most populous urban areas (ABS Significant
+   Urban Areas), or every urban area of 50,000 people or more followed by the most populous councils outside them. Two
+   price measures: the councils a region covers (their 12-month medians, weighted by its people in each) or the Cotality
+   suburbs inside it (weighted by sales). The eight capitals use the series of Rolling capital growth under both, so they
+   match that chart. A region is blank in a frame where a median is missing or rests on fewer than 20 sales in 12 months.
+   The row holds every June and December, the latest month and the month six from it, so a custom period rounds to the
+   half year. ?list=top|mixed ?price=councils|suburbs ?market=smooth|workforce|untyped ?area=capitals|regional
+   ?pop=1m|250k|100k|50k|25k|small ?show=10|20|all preset the filters; ?mode ?years ?growth ?type ?speed ?play as for capitals. */
+let R = null, rLoading = null, rIdx = {}, rFill = {};
+const R_BANDS = [['all', 'All sizes', 0, Infinity], ['1m', '1M+', 1e6, Infinity], ['250k', '250k–1M', 250e3, 1e6], ['100k', '100k–250k', 100e3, 250e3], ['50k', '50k–100k', 50e3, 100e3], ['25k', '25k–50k', 25e3, 50e3], ['small', 'Under 25k', 0, 25e3]];
+const R_MARKET = { smooth: 'smooth', workforce: 'workforce', untyped: 'none' };
+const STATE_CITY = { NSW: 'Sydney', VIC: 'Melbourne', QLD: 'Brisbane', SA: 'Adelaide', WA: 'Perth', TAS: 'Hobart', NT: 'Darwin', ACT: 'Canberra' };
+const halfYear = v => Math.round(v * 2) / 2;
+let rList = QS.get('list') === 'mixed' ? 'mixed' : 'top', rPrice = QS.get('price') === 'suburbs' ? 'sub' : 'lga';
+let rMarket = R_MARKET[QS.get('market')] || 'all', rArea = ['capitals', 'regional'].includes(QS.get('area')) ? QS.get('area') : 'all';
+let rPop = R_BANDS.some(b => b[0] === QS.get('pop')) ? QS.get('pop') : 'all', rShow = ['20', 'all'].includes(QS.get('show')) ? QS.get('show') : '10';
+let rCustom = yearsOk(halfYear(QS_YEARS)) ? halfYear(QS_YEARS) : 10;
+let rMode = yearsOk(halfYear(QS_YEARS)) ? 'custom' : ['roll', 'roll75', 'roll9', 'long'].includes(QS.get('mode')) ? QS.get('mode') : 'roll9';
+let rTotal = QS.get('growth') !== 'yearly' && rMode !== 'long', rType = QS.get('type') === 'unit' ? 'U' : 'H';
+let rSpeed = SPEEDS[QS.get('speed')] ? QS.get('speed') : 'normal', rFrames = [], rAt = 0, rTimer = null, rChart = null, rIds = [];
+const rWindowOf = mode => mode === 'custom' ? Math.round(rCustom * 2) * 6 : WINDOWS[mode];   /* months; undefined for long */
+/* a capital in its own colour; any other region in its state capital's colour, half way to the ground */
+const mixHex = (a, b, t) => '#' + [1, 3, 5].map(i => Math.round(parseInt(a.slice(i, i + 2), 16) * t + parseInt(b.slice(i, i + 2), 16) * (1 - t)).toString(16).padStart(2, '0')).join('');
+const rCol = id => { const r = R.regions[id]; return r.city ? cityCol(r.city) : mixHex(cityCol(STATE_CITY[r.st] || 'Sydney'), tok('--bg'), 0.5); };
+/* the strip's short name: a capital's code; initials of a name of several words; else its first four letters */
+const rCode = id => { const r = R.regions[id]; if (r.city) return CODE[r.city]; const w = r.name.split(/[\s–-]+/).filter(Boolean); return w.length > 1 ? w.slice(0, 3).map(x => x[0]).join('').toUpperCase() : r.name.slice(0, 4).toUpperCase(); };
+function rMed(id, m){
+  const r = R.regions[id];
+  if (r.city) { const x = ((S[r.city] || {})[rType] || {})[m]; return x ? x.med12 : null; }
+  const p = r.v && r.v[rPrice] && r.v[rPrice][rType], i = rIdx[m]; if (!p || i == null) return null;
+  const v = p.d[i - p.s]; return v == null ? null : v * 100;
+}
+function rEntrants(){
+  const b = R_BANDS.find(x => x[0] === rPop);
+  return R.lists[rList].filter(id => { const r = R.regions[id]; if (!r) return false;
+    if (rMarket !== 'all' && (rMarket === 'none' ? !!r.type : r.type !== rMarket)) return false;
+    if (rArea === 'capitals' ? r.kind !== 'capital' : rArea === 'regional' && r.kind === 'capital') return false;
+    return r.pop >= b[2] && r.pop < b[3]; });
+}
+function rFramesFor(ids){
+  const last = R.to, w = rWindowOf(rMode), total = rTotal && !!w, first = {};
+  if (!w) ids.forEach(id => { first[id] = (R.regions[id].city ? MONTHS : R.months).find(m => rMed(id, m) != null) || null; });
+  const stops = []; for (let y = 1990; y < +last.slice(0, 4); y++) stops.push(y + '-12'); if (stops[stops.length - 1] !== last) stops.push(last);
+  return stops.map(m => {
+    const v = {}; ids.forEach(id => {
+      const a = w ? addM(m, -w) : first[id], n = a ? between(a, m) : 0, p0 = a ? rMed(id, a) : null, p1 = rMed(id, m);
+      v[id] = p0 && p1 && n >= (w || 96) ? (total ? p1 / p0 - 1 : Math.pow(p1 / p0, 12 / n) - 1) : null;
+    });
+    const ranked = ids.filter(id => v[id] != null).sort((a, b) => v[b] - v[a]);
+    return { m, label: m.slice(5) === '12' ? m.slice(0, 4) : monLabel(m), v, lead: ranked[0] || null, n: ranked.length, low: ranked.length ? v[ranked[ranked.length - 1]] : 0 };
+  }).filter(f => f.lead);
+}
+/* a blank sits just under the lowest figure, unseen, so it never takes a place among the bars shown */
+function rBars(f){ return rIds.map(id => ({ value: +((f.v[id] == null ? Math.min(0, f.low) - 0.01 : f.v[id]) * 100).toFixed(4), none: f.v[id] == null, itemStyle: { color: rFill[id], opacity: f.v[id] == null ? 0 : 1, borderRadius: [0, 5, 5, 0] } })); }
+function rShowFrame(i, quick){
+  rAt = Math.max(0, Math.min(rFrames.length - 1, i)); const f = rFrames[rAt];
+  const glide = quick ? 0 : Math.round(SPEEDS[rSpeed] * 0.72), shown = rShow === 'all' ? f.n : Math.min(+rShow, f.n), big = shown <= 12, fs = big ? 13 : shown <= 24 ? 11 : 9;
+  /* the scale follows the bars on screen: with up to 100 regions one boom town (Port Hedland's 9 years to 2013) would
+     otherwise flatten every other year */
+  const vis = rIds.map(id => f.v[id]).filter(x => x != null).sort((a, b) => b - a).slice(0, shown);
+  const hi = vis[0] * 100, lo = Math.min(0, vis[vis.length - 1]) * 100;
+  const nice = x => { const p = Math.pow(10, Math.floor(Math.log10(x))), q = x / p; return (q <= 1 ? 1 : q <= 2 ? 2 : q <= 2.5 ? 2.5 : q <= 5 ? 5 : 10) * p; };
+  const iv = nice(Math.max(hi - lo, 1) / 5);   /* about five steps, each a round figure, the ends on a step */
+  rChart.setOption({ animationDurationUpdate: glide,
+    xAxis: { min: lo < 0 ? Math.floor(lo / iv) * iv : 0, max: Math.ceil((Math.max(hi, 0) + 0.5) / iv) * iv, interval: iv, axisLabel: { showMinLabel: lo >= 0 } },
+    yAxis: { max: shown - 1, animationDurationUpdate: Math.round(glide * 0.8), axisLabel: { fontSize: fs, interval: Math.ceil(shown / 25) - 1 } },   /* over 25 bars, every second (third, fourth) one is named */
+    series: [{ data: rBars(f), label: { show: shown <= 30, fontSize: big ? 13 : 11 } }] });
+  $('#rYear').textContent = f.label; $('#rRange').value = rAt;
+  $('#rCount').textContent = (shown < f.n ? 'Top ' + shown + ' of ' + f.n : 'All ' + f.n) + (f.n === 1 ? ' region' : ' regions') + ' with figures';
+  document.querySelectorAll('#rStrip div').forEach((d, k) => d.classList.toggle('now', k === rAt));
+  document.querySelectorAll('#rTicks button').forEach((b, k) => { const on = k === rAt; b.classList.toggle('now', on); b.setAttribute('aria-current', on ? 'true' : 'false'); });
+}
+function rLoad(){
+  if (rLoading) return rLoading;
+  $('#rEmpty').hidden = false; $('#rEmpty').textContent = 'Loading the regional figures…';
+  rLoading = sb.from('forge_cotality').select('data').eq('id', 'cl_region_history').maybeSingle().then(({ data, error }) => {
+    if (error) throw error;
+    const d = data && data.data; if (!d || !d.regions || !d.lists || !d.months) throw new Error('They are not in the Forge yet.');
+    R = d; rIdx = Object.fromEntries(R.months.map((m, i) => [m, i]));
+    if (VIEW === 'regions') { drawRegions(); if (QS.get('play') === '1') setTimeout(() => rPlay(true), 600); }
+  }).catch(e => { rLoading = null; $('#rEmpty').hidden = false; $('#rEmpty').textContent = 'The regional figures could not be loaded. ' + (e && e.message ? e.message : ''); });
+  return rLoading;
+}
+function drawRegions(){
+  const segOn = (sel, test) => document.querySelectorAll(sel + ' button').forEach(x => { const on = test(x); x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+  const w = rWindowOf(rMode), total = rTotal && !!w, span = w ? yearWords(w) : '', what = rType === 'U' ? 'unit' : 'house';
+  segOn('#rSeg', x => x.dataset.mode === rMode); segOn('#rType', x => x.dataset.type === rType);
+  $('#rCustom').hidden = rMode !== 'custom';
+  if (document.activeElement !== $('#rYears')) $('#rYears').value = fmtYears(rCustom);
+  document.querySelectorAll('#rMeasure button').forEach(x => { const on = (x.dataset.total === '1') === total; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); if (x.dataset.total === '1') { x.disabled = !w; x.title = w ? '' : 'Total growth needs the same period for every region'; } });
+  if (!$('#rPop').options.length) $('#rPop').innerHTML = R_BANDS.map(b => '<option value="' + b[0] + '">' + b[1] + '</option>').join('');
+  $('#rList').value = rList; $('#rPrice').value = rPrice; $('#rMarket').value = rMarket; $('#rArea').value = rArea; $('#rPop').value = rPop; $('#rShow').value = rShow;
+  if (!R) { rLoad(); return; }
+  rIds = rEntrants();
+  const was = rFrames.length ? rFrames[rAt].m.slice(0, 4) : null;   /* the year on screen, kept across a switch */
+  rFrames = rIds.length ? rFramesFor(rIds) : [];
+  const band = R_BANDS.find(b => b[0] === rPop), bits = [];
+  if (rMarket !== 'all') bits.push(rMarket === 'none' ? 'not typed' : rMarket + ' markets');
+  if (rArea !== 'all') bits.push(rArea === 'capitals' ? 'capital cities' : 'regional');
+  if (rPop !== 'all') bits.push(band[1] + ' people');
+  $('#rEyebrow').textContent = what[0].toUpperCase() + what.slice(1) + ' prices · ' + rIds.length + (rIds.length === 1 ? ' region' : ' regions') + (bits.length ? ' · ' + bits.join(' · ') : '');
+  $('#rFoot').textContent = (rList === 'top' ? 'The 100 most populous urban areas (ABS Significant Urban Areas). ' : 'Urban areas of 50,000 people or more, then the most populous councils outside them. ')
+    + (rPrice === 'lga' ? '12-month median sale price of the councils each covers, weighted by its people in each. ' : '12-month median sale price of the suburbs inside each, weighted by sales. ')
+    + 'Capitals as on Rolling capital growth. A region appears once it has ' + (w ? span : '8 years') + ' of sales on record, with ' + (R.minSales || 20) + ' sales or more in 12 months at each end.'
+    + ' Population: ABS, ' + ((R.pop && R.pop.year) || '') + '. Smooth and workforce: the Runway v Demand markets. Source: Cotality, ABS. Analysis: Performance Property. © ' + new Date().getFullYear() + ' PPA Services Pty Ltd';
+  if (!rFrames.length) {
+    rPlay(false); if (rChart) rChart.clear();
+    ['#rStrip', '#rStripYears', '#rTicks'].forEach(s => { $(s).innerHTML = ''; }); $('#rYear').textContent = ''; $('#rCount').textContent = ''; $('#rRange').max = 0;
+    $('#rEmpty').hidden = false; $('#rEmpty').textContent = rIds.length ? 'None of these ' + rIds.length + ' regions has ' + (w ? span : '8 years') + ' of figures yet.' : 'No region matches these filters.';
+    return;
+  }
+  $('#rEmpty').hidden = true;
+  rFill = {}; rIds.forEach(id => { rFill[id] = rCol(id); });
+  const n = rFrames.length, cols = 'repeat(' + n + ',1fr)';
+  $('#rStrip').style.gridTemplateColumns = cols; $('#rStripYears').style.gridTemplateColumns = cols;
+  $('#rStrip').innerHTML = rFrames.map(f => { const bg = rFill[f.lead]; return '<div style="background:' + bg + ';color:' + inkOn(bg) + '" title="' + f.label + ': ' + R.regions[f.lead].name + ' ' + pct(f.v[f.lead]) + '">' + rCode(f.lead) + '</div>'; }).join('');
+  $('#rStripYears').innerHTML = rFrames.map((f, k) => '<span>' + (k === n - 1 || +f.m.slice(0, 4) % 5 === 0 ? "'" + f.m.slice(2, 4) : '') + '</span>').join('');
+  $('#rRange').max = n - 1;
+  $('#rTicks').innerHTML = rFrames.map((f, k) => '<button type="button" data-k="' + k + '" style="left:calc(8px + (100% - 16px) * ' + (n > 1 ? k / (n - 1) : 0) + ')" aria-label="Jump to ' + f.label + '" title="' + f.label + '">&#39;' + f.m.slice(2, 4) + '</button>').join('');
+  const ink = tok('--ink'), mut = tok('--mut'), grid = tok('--grid');
+  if (!rChart) rChart = echarts.init($('#rChart'), null, { renderer: 'canvas', devicePixelRatio: Math.max(2, devicePixelRatio || 1) }); else rChart.resize();
+  rChart.setOption({
+    textStyle: { fontFamily: 'Montserrat' }, grid: { left: 196, right: 70, top: 18, bottom: 26 },
+    xAxis: { type: 'value', axisLabel: { color: mut, fontSize: 11, formatter: v => v + '%' }, splitLine: { lineStyle: { color: grid } }, axisLine: { show: false }, axisTick: { show: false } },
+    yAxis: { type: 'category', inverse: true, data: rIds.map(id => R.regions[id].name), max: 0, animationDuration: 300, animationDurationUpdate: 500, axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { color: ink, fontSize: 13, fontWeight: 600, fontFamily: 'Montserrat', width: 186, overflow: 'truncate' } },
+    series: [{ type: 'bar', realtimeSort: true, barMaxWidth: 36, data: rBars(rFrames[n - 1]),
+      label: { show: true, position: 'right', valueAnimation: true, color: ink, fontFamily: 'Montserrat', fontWeight: 700, fontSize: 13, formatter: p => p.data.none ? '' : p.value.toFixed(total ? 0 : 1) + '%' } }],
+    animationDuration: 0, animationDurationUpdate: 650, animationEasing: 'linear', animationEasingUpdate: 'linear',
+  }, true);
+  const keep = was ? rFrames.findIndex(f => f.m.slice(0, 4) === was) : -1;
+  rShowFrame(keep >= 0 ? keep : was && was > rFrames[n - 1].m ? n - 1 : 0, true);
+}
+function rPlay(on){
+  clearInterval(rTimer); rTimer = null;
+  $('#rPlayIcon').setAttribute('d', on ? 'M4 3h3v10H4zM9 3h3v10H9z' : 'M4.5 3 13 8l-8.5 5Z'); $('#rPlay').setAttribute('aria-label', on ? 'Pause' : 'Play');
+  if (!on || !rFrames.length) return;
+  if (rAt >= rFrames.length - 1) rShowFrame(Math.max(0, rFrames.findIndex(f => +f.m.slice(0, 4) >= START_YEAR)), true);
+  rTimer = setInterval(() => { if (rAt >= rFrames.length - 1) { rPlay(false); return; } rShowFrame(rAt + 1); }, SPEEDS[rSpeed]);
+}
+function rSetSpeed(s){
+  if (!SPEEDS[s]) return; rSpeed = s;
+  document.querySelectorAll('#rSpeed button').forEach(x => { const on = x.dataset.speed === s; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+  if (rTimer) rPlay(true);
+}
+
 /* ═════════════════════════════ page ═════════════════════════════ */
 const presenting = () => document.body.classList.contains('cy-presenting');
 const slideScale = () => EMBED || presenting() ? Math.min(innerWidth / 1280, innerHeight / 720) : Math.min(1, ($('.cy-page').clientWidth - 40) / 1280);
@@ -513,13 +710,13 @@ function fit(){
   document.body.style.background = pres ? getComputedStyle($('#cy')).getPropertyValue('--bg').trim() : '';
 }
 function show(view){
-  VIEW = view; play(false);
+  VIEW = view; play(false); rPlay(false);
   document.querySelectorAll('.cy-tab').forEach(b => b.classList.toggle('on', b.dataset.view === view));
-  $('#vFalls').hidden = view !== 'falls'; $('#vGrowth').hidden = view !== 'growth';
-  if (view === 'falls') drawFalls(); else drawGrowth();
+  $('#vFalls').hidden = view !== 'falls'; $('#vGrowth').hidden = view !== 'growth'; $('#vRegions').hidden = view !== 'regions';
+  if (view === 'falls') drawFalls(); else if (view === 'growth') drawGrowth(); else drawRegions();
 }
 function paint(){
-  const g = ground(); $('#cy').dataset.ground = g; $('#fLogo').src = LOGO[g]; $('#gLogo').src = LOGO[g];
+  const g = ground(); $('#cy').dataset.ground = g; $('#fLogo').src = LOGO[g]; $('#gLogo').src = LOGO[g]; $('#rLogo').src = LOGO[g];
   if (MONTHS.length) show(VIEW);
   if (presenting()) fit();
 }
@@ -527,16 +724,17 @@ document.querySelectorAll('.cy-tab[data-view]').forEach(b => b.addEventListener(
 /* ── Present (owner, 2026-11-25: "add a present feature in market Cycles for both graph") ──
    The slide alone, full screen where the browser allows it, scaled to fit and centred like an embed. ← → (or Page
    Up/Down, or the bar's arrows) switch between the two charts; Esc or Exit leaves. The bar hides after 2.5 s still. */
-const VIEW_NAME = { falls: 'The biggest falls', growth: 'Rolling capital growth' };
+const VIEW_NAME = { falls: 'The biggest falls', growth: 'Rolling capital growth', regions: 'Regional growth' };
 let presIdle = null;
 function presWake(){ document.body.classList.remove('cy-idle'); clearTimeout(presIdle); if (presenting()) presIdle = setTimeout(() => document.body.classList.add('cy-idle'), 2500); }
-function presName(){ $('#cyPresName').textContent = VIEW_NAME[VIEW] + ' · ' + (VIEW === 'falls' ? 1 : 2) + ' of 2'; }
+/* Regional growth presents on its own: the arrows keep switching between the two capital charts only (2026-11-27) */
+function presName(){ const solo = VIEW === 'regions'; $('#cyPresName').textContent = VIEW_NAME[VIEW] + (solo ? '' : ' · ' + (VIEW === 'falls' ? 1 : 2) + ' of 2'); $('#cyPrev').hidden = solo; $('#cyNext').hidden = solo; }
 /* a key redraws the chart under a still mouse, so an open tooltip is closed first, or its pending move lands on the
    tooltip the redraw removed (ECharts: "Cannot read properties of null (reading 'offsetWidth')") */
-function closeTips(){ [fChart, gChart].forEach(c => { if (c) try { c.dispatchAction({ type: 'hideTip' }); } catch (e) {} }); }
+function closeTips(){ [fChart, gChart, rChart].forEach(c => { if (c) try { c.dispatchAction({ type: 'hideTip' }); } catch (e) {} }); }
 function present(on){
   if (on === presenting()) return;
-  play(false); closeTips();
+  play(false); rPlay(false); closeTips();
   document.body.classList.toggle('cy-presenting', on);
   if (on) { const el = document.documentElement; if (el.requestFullscreen && !document.fullscreenElement) el.requestFullscreen().catch(() => {}); }
   else { clearTimeout(presIdle); document.body.classList.remove('cy-idle'); if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); }
@@ -544,7 +742,7 @@ function present(on){
   if (MONTHS.length) show(VIEW);
   presName(); presWake();
 }
-function presStep(){ closeTips(); show(VIEW === 'falls' ? 'growth' : 'falls'); presName(); presWake(); }
+function presStep(){ if (VIEW === 'regions') return; closeTips(); show(VIEW === 'falls' ? 'growth' : 'falls'); presName(); presWake(); }
 $('#cyPresent').addEventListener('click', () => present(true));
 $('#cyExit').addEventListener('click', () => present(false));
 $('#cyPrev').addEventListener('click', presStep);
@@ -579,7 +777,30 @@ $('#gSpeed').addEventListener('click', e => { const b = e.target.closest('button
 setSpeed(gSpeed);
 $('#gRange').addEventListener('input', e => { play(false); showFrame(+e.target.value, true); });
 $('#gTicks').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; play(false); showFrame(+b.dataset.k, true); });
-addEventListener('resize', () => { fit(); if (fChart) fChart.resize(); if (gChart) gChart.resize(); });
+/* regions: the same controls as the capitals, plus the six filters */
+$('#rSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.mode === 'custom' && rMode !== 'custom' && WINDOWS[rMode]) rCustom = halfYear(WINDOWS[rMode] / 12);
+  rMode = b.dataset.mode; rPlay(false); drawRegions();
+  if (rMode === 'custom') { const i = $('#rYears'); i.focus(); i.select(); } });
+function rApplyYears(){
+  const i = $('#rYears'), v = halfYear(parseFloat(String(i.value).replace(',', '.')));
+  if (!yearsOk(v)) { i.setAttribute('aria-invalid', 'true'); i.value = fmtYears(rCustom); setTimeout(() => i.removeAttribute('aria-invalid'), 1500); return; }
+  i.removeAttribute('aria-invalid'); i.value = fmtYears(v);
+  if (v === rCustom && rMode === 'custom') return;
+  rCustom = v; rMode = 'custom'; rPlay(false); drawRegions();
+}
+$('#rYears').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); rApplyYears(); } else if (e.key === 'Escape') { e.target.value = fmtYears(rCustom); e.target.blur(); } });
+$('#rYears').addEventListener('change', rApplyYears);
+$('#rType').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; rType = b.dataset.type; rPlay(false); drawRegions(); });
+$('#rMeasure').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; rTotal = b.dataset.total === '1'; rPlay(false); drawRegions(); });
+const R_PICK = { rList: v => { rList = v; }, rPrice: v => { rPrice = v; }, rMarket: v => { rMarket = v; }, rArea: v => { rArea = v; }, rPop: v => { rPop = v; }, rShow: v => { rShow = v; } };
+Object.keys(R_PICK).forEach(k => $('#' + k).addEventListener('change', e => { R_PICK[k](e.target.value); rPlay(false); drawRegions(); }));
+$('#rPlay').addEventListener('click', () => rPlay(!rTimer));
+$('#rSpeed').addEventListener('click', e => { const b = e.target.closest('button'); if (b) rSetSpeed(b.dataset.speed); });
+rSetSpeed(rSpeed);
+$('#rRange').addEventListener('input', e => { rPlay(false); if (rFrames.length) rShowFrame(+e.target.value, true); });
+$('#rTicks').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; rPlay(false); rShowFrame(+b.dataset.k, true); });
+addEventListener('resize', () => { fit(); if (fChart) fChart.resize(); if (gChart) gChart.resize(); if (rChart) rChart.resize(); });
 new MutationObserver(paint).observe(document.documentElement, { attributes: true, attributeFilter: ['data-shade'] });
 fit();
 (async () => {

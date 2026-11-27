@@ -24,6 +24,8 @@ The presentation opens on the state of the market. Saskia asked for two charts a
 - `?view=growth`: eight bars that re-sort as the years run (press play, or drag the slider), Melbourne in teal and
   Darwin in amber because those are the markets the presentation is about. Under it, a strip naming the leader of
   each year. A switch picks "Rolling 10 years" (default) or "Long term".
+- `?view=regions` ("Regional growth", 2026-11-27): the same race over up to 100 regions, with filters. See
+  "Regional growth" below.
 - `?embed=1` draws one view at exactly 1280 x 720 with no app bar. `?theme=light|dark` picks the ground (an embed
   is dark by default; the page on its own follows the OS shade). `?mode=long` and `?play=1` set the growth view's
   switch and start it playing.
@@ -34,6 +36,7 @@ The presentation opens on the state of the market. Saskia asked for two charts a
 |---|---|
 | `forge_cotality` row `cl_capital_history` | The eight capitals, houses and units, monthly January 1980 to June 2018: `data.cities[<City>][H|U] = { avm, n, med12 }`, one array entry per month from `data.from` |
 | `forge_cl_suburbs` level `capital` | The same three figures from July 2018 (`metrics.avm`, `metrics.props`, `metrics.med12`) |
+| `forge_cotality` row `cl_region_history` | Regional growth only, read when that tab opens: the regions, the two lists, population, market type and two price series per region (below) |
 
 The history row was written once by `node scripts/build-cl-capital-history.mjs --write` from
 `CSTDAT4294-CapitalCities_1980-2018.csv` (shared drive, "CoreLogic files / Historic"; kept outside the repo in
@@ -61,6 +64,82 @@ in `forge_cl_suburbs` and the page picks it up.
   early years have fewer bars.
 - A near tie (a quarter of a point) is described as a tie, not a ranking.
 
+## Regional growth (`?view=regions`, 2026-11-27)
+
+Asked by Saskia via Van for Davie: the "which capital is ahead" race with the top 100 regions by population,
+filterable by population, smooth v workforce and capital v regional. Saskia: urban areas (SUA) for the bigger
+regions, then the biggest councils not inside the SUAs already included. Hub first; OS later.
+
+**On the slide.** The capitals view's controls (House/Unit, 7.5 / 9 / 10 years, Long term, Custom, Yearly/Total, Play
+from 2007, speed, the year row, "Who led each year") plus six dropdowns:
+
+| Dropdown | Options | URL |
+|---|---|---|
+| Regions | Top 100 urban areas · Urban areas 50k+, then councils | `list=top\|mixed` |
+| Price | Councils it covers · Suburbs inside it | `price=councils\|suburbs` |
+| Market | All · Smooth · Workforce · Not typed | `market=smooth\|workforce\|untyped` |
+| Area | All · Capitals · Regional | `area=capitals\|regional` |
+| People | All sizes · 1M+ · 250k–1M · 100k–250k · 50k–100k · 25k–50k · Under 25k | `pop=1m\|250k\|100k\|50k\|25k\|small` |
+| Show | Top 10 (default) · Top 20 · All | `show=10\|20\|all` |
+
+`mode`, `years`, `growth`, `type`, `speed`, `play`, `theme` and `embed` work as on the capitals view. Capitals keep
+their own colour as solid bars; every other region takes its state capital's colour half way to the ground (the name
+is always on the axis, so colour never works alone). The x-axis fits the bars on screen each year, because one
+mining-boom town would otherwise flatten every other year. Over 25 bars ("All") every second or later name is shown
+and the figures are dropped. Present from this tab shows it alone; the arrows still switch only falls and growth.
+
+**Data: `forge_cotality` / `cl_region_history`**, built by `node scripts/build-cl-region-history.mjs` (dry run writes
+`scratch/_mc-regions/cl_region_history.json`; `--write` stores it). `data.lists.top|mixed` (ids), `data.regions[id] =
+{ name, kind: capital|sua|lga, st, pop, type, city?, v? }`, `data.months`, `data.minSales`, `data.pop`, `data.match`.
+`v.lga|sub.H|U = { s, d }`: values in $100 on `data.months` from index `s`, null where blank. Capitals carry no `v`.
+About 440 KB. Unlike the capital history it **needs a re-run after each Cotality month** (the page cannot read 30,000
+suburb rows live); until then the race stops at the row's `to` month. The script reads the Forge through the Supabase
+CLI (`supabase db query --linked`, read-only SELECTs, one stored month at a time) and caches each source under
+`scratch/_mc-regions/cache` (`--fresh` re-reads the Forge months).
+
+**Rules (decided 2026-11-27):**
+- **Lists.** *Top 100 urban areas*: the 100 most populous of the 103 ABS Significant Urban Areas (ASGS Ed. 3), by
+  2025 ERP (sum of SA2s). *Urban areas 50k+, then councils*: every SUA of 50,000 people or more (31), then councils
+  (ABS LGA 2025, ERP 2025) from the most populous down, until 100. A council is **inside** an included SUA when at
+  least half of its people (Census 2021 mesh-block counts) live in it, and is then left out; councils mostly inside
+  a smaller SUA, and unincorporated areas excluded, are eligible. A council keeps its state in its name only where
+  another region in the list shares the name (Central Coast (Tas.)).
+- **Capitals** use the capital series of Rolling capital growth (`cl_capital_history` + `forge_cl_suburbs` level
+  capital) under both measures, so they match that chart figure for figure. Canberra is the "Canberra - Queanbeyan" SUA.
+- **Councils it covers**: the Cotality 12-month median of each council a region covers, chained as a weighted geometric
+  mean of each council's growth, weighted by the region's people in that council (Census 2021). A council region is its
+  own council's median. Cotality council names are matched to ABS 2025 names with the `canonLga` rule plus seven renames
+  (Moreland → Merri-bek, Nambucca → Nambucca Valley, Western Plains → Dubbo, Mallala → Adelaide Plains, Port Pirie City
+  and Dists → Port Pirie, Lower Eyre Peninsula → Lower Eyre, Break ODay → Break O'Day); three old names stay unmatched
+  (Botany Bay, Rockdale, Gundagai).
+- **Suburbs inside it**: the Cotality suburbs whose ABS suburb (SAL 2021) has most of its people inside the region,
+  chained as a weighted geometric mean of each suburb's growth, **weighted by sales** (the mean of its 12-month sales at
+  the two ends of each step). Cotality suburbs are matched to ABS suburbs by state and name; a name used twice in a
+  state is settled by postcode. Match: 9,077 of 9,111 Cotality suburbs with a median (99.6%), 100% of the latest
+  month's sales.
+- Both measures chain only places with a median at both ends of a step, so a place joining or leaving does not move
+  the line; where two stored months share no place, the line restarts and the earlier figures are dropped.
+- **Too few sales = blank, never zero.** A region's figure for a month is blank when the places behind it have fewer
+  than 20 sales in the 12 months, or (councils) when the councils with a median hold less than half its people. A
+  frame needs a figure at both ends of the window.
+- **Months stored**: every June and December from 1980, plus the latest month and the month six from it for the 30
+  years before it (all a window from a December or the latest month can reach). So **a custom period rounds to the half
+  year** here (8.3 → 8.5), unlike the capitals view.
+- **The join** is the capital history's: CoreLogic history to June 2018, the Forge from July 2018, no rescaling. The
+  step across it (June to August 2018, against the months around it) is about 1% for the typical region; a handful of
+  small places step much more (`node scratch/_mc-regions/tools/validate.mjs` lists them).
+- **Smooth v workforce**: the 36 Runway v Demand markets, read from `tools/runway-demand.html` (`RAW`) at build time.
+  A capital takes its own type; each regional market is one council (the codes `scripts/ingest-abs-population.mjs`
+  uses) and types the council region, and the SUA holding at least half of its people. Albury and Wodonga share one
+  SUA; Ipswich falls in Brisbane, Rockingham and Mandurah in Perth (no disagreements). 32 regions typed in each list;
+  the rest are "Not typed".
+- **Population bands** from the real spread: under 50k holds 69 of the top 100 urban areas, so it is split at 25k.
+
+**Method check** (`scratch/_mc-regions/tools/validate.mjs`): both measures built for the eight capital SUAs land within
+about half a point a year of Cotality's own capital-city median on 10-year rates (councils 0.45, suburbs 0.59 points on
+average over 104 comparisons). Darwin's suburbs measure runs well above the capital in the 10 years to 2010 and 2015,
+when the NT history is short.
+
 ## In the presentation builder
 
 `tools/presentation.html` lists both under Add embed ("Biggest falls since 1980", "Fastest-growing capital"). They
@@ -71,12 +150,16 @@ go in at the full slide (`EMBED_KINDS` entries with `full: true`, 1280 x 720).
 - A home for the 1980 to 2018 capital history (one store key; copy the hub row, 139 KB).
 - The capital-level rows of `forge_cl_suburbs` (pp-os already keeps them).
 - The page's arithmetic as a contracts module with tests: the chained index, the falls, the two growth rates.
+- Regional growth (when OS gets it): the `cl_region_history` row as one store key (copy from the hub, re-copied after
+  each monthly rebuild, hub first) and the region frames (`rFramesFor`), with the half-year rounding of custom periods.
 
 ## Checks (hub, in `scratch/`)
 
 `_mc-check.mjs` drives both views as slide embeds in both grounds and compares every figure with
 `_pres-charts/analyse.mjs`, which joins the history file and the Forge by itself. `_pres-embed-check.mjs` confirms
 the builder lists the two embeds and loads without an error.
+`_mc-regions/check-regions.mjs` drives Regional growth: the `cl_region_history` read is answered from the dry-run JSON by
+request interception, everything else is live; expected figures are worked out from that JSON and the analysis join.
 
 ## Not checked yet
 
@@ -248,3 +331,11 @@ the builder lists the two embeds and loads without an error.
   closed before a key redraws a chart (otherwise ECharts' pending tooltip move hit the removed tooltip). Checks:
   `node scratch/_mc-present-check.mjs` (1920x1080 and 1440x900) and `node scratch/_mc-check.mjs` (77). pp-os: its
   Market Cycles has no Present yet; carry this with the 11-25 follow-up.
+- 2026-11-27 (Saskia via Van, for Davie: "a version with all the top 100 regions for population … customisable"): new
+  **Regional growth** tab (`?view=regions`), the growth race over up to 100 regions with Regions / Price / Market /
+  Area / People / Show dropdowns, and new `forge_cotality` row **`cl_region_history`** from new
+  `scripts/build-cl-region-history.mjs` (dry run only so far; the row is not written). Van's calls: both lists and both
+  price measures as dropdowns; smooth v workforce from the 36 Runway v Demand markets; hub first. The two existing views
+  are unchanged; the falls view does not fetch the new row. Present from the new tab shows it alone. Not yet in the
+  presentation builder's Add embed list. Checks: `node scratch/_mc-regions/check-regions.mjs` (64), `node
+  scratch/_mc-check.mjs` (77; its tab check now expects three tabs), `node scratch/_mc-present-check.mjs` (22).
